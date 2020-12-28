@@ -8,6 +8,8 @@ require (
 	github.com/gorilla/websocket v1.4.2
 	github.com/tidwall/gjson v1.1.4
 	github.com/tidwall/match v1.0.3 // indirect
+	github.com/tkrajina/go-reflector v0.5.4 // indirect
+	github.com/tkrajina/typescriptify-golang-structs v0.1.4
 	github.com/twinj/uuid v1.0.0
 )
 

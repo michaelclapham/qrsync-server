@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/fatih/color"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
@@ -22,59 +21,6 @@ type App struct {
 	SessionMap map[string]Session
 }
 
-// Client - Connected client
-type Client struct {
-	ID              string `json:"id"`
-	Name            string `json:"name"`
-	conn            *websocket.Conn
-	activeSessionID string
-}
-
-// Session - Session for sharing content
-type Session struct {
-	ID          string   `json:"id"`
-	OwnerID     string   `json:"ownerId"`
-	ClientIDs   []string `json:"clientIds"`
-	createdDate time.Time
-}
-
-// AddSessionClientMsg - Websocket message
-type AddSessionClientMsg struct {
-	Type        string `json:"type"`
-	SessionID   string `json:"sessionId"`
-	AddClientID string `json:"addClientId"`
-}
-
-// AddedToSessionMsg -
-type AddedToSessionMsg struct {
-	Type      string `json:"type"`
-	SessionID string `json:"sessionId"`
-}
-
-// BroadcastToSessionMsg -
-type BroadcastToSessionMsg struct {
-	Type    string `json:"type"`
-	Payload interface{}
-}
-
-// BroadcastFromSession -
-type BroadcastFromSession struct {
-	Type     string `json:"type"`
-	SenderID string `json:"senderId"`
-}
-
-// ErrorMsg - Websocket error message
-type ErrorMsg struct {
-	Type    string `json:"type"`
-	Message string `json:"message"`
-}
-
-// InfoMsg - Websocket info message
-type InfoMsg struct {
-	Type    string `json:"type"`
-	Message string `json:"message"`
-}
-
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
@@ -85,8 +31,23 @@ func (a *App) Init() {
 	a.Router = mux.NewRouter()
 	a.ClientMap = make(map[string]Client)
 	a.SessionMap = make(map[string]Session)
-	a.Router.HandleFunc("/ws", a.serveWs)
+	a.Router.HandleFunc("/v1/ws", a.serveWs)
+
+	// @TODO Secure with an admin password
+	a.Router.HandleFunc("/v1/clients", a.getClients)
+	a.Router.HandleFunc("/v1/sessions", a.getSessions)
+
 	a.ListenOnPort(4001, false)
+}
+
+func (a *App) getClients(w http.ResponseWriter, r *http.Request) {
+	res, _ := json.MarshalIndent(a.ClientMap, "\n", "  ")
+	w.Write(res)
+}
+
+func (a *App) getSessions(w http.ResponseWriter, r *http.Request) {
+	res, _ := json.MarshalIndent(a.SessionMap, "\n", "  ")
+	w.Write(res)
 }
 
 // ListenOnPort Starts the app listening on the provided port
@@ -106,17 +67,21 @@ func (a *App) serveWs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	client := Client{
-		ID:   r.RemoteAddr,
-		conn: conn,
+		ID:         uuid.NewV4().String(),
+		RemoteAddr: r.RemoteAddr,
+		conn:       conn,
 	}
-	if _, ok := a.ClientMap[client.ID]; ok {
-		color.Red("Remote address tried to join twice with same IP and port", r.RemoteAddr)
-	}
+	a.ClientMap[client.ID] = client
 	conn.SetCloseHandler(func(_ int, _ string) error {
 		fmt.Println("Connection closed ", r.RemoteAddr)
 		delete(a.ClientMap, client.ID)
 		return nil
 	})
+	connectMsg := ClientConnectMsg{
+		Type:   "client-connect",
+		Client: client,
+	}
+	conn.WriteJSON(connectMsg)
 	for {
 		_, message, err := conn.ReadMessage()
 		if err != nil {
@@ -132,13 +97,17 @@ func (a *App) serveWs(w http.ResponseWriter, r *http.Request) {
 			msgType := typeJSONValue.String()
 			fmt.Println("Message type =", msgType)
 			switch msgType {
-			case "create-session":
+			case "UpdateClient":
+				msg := UpdateClientMsg{}
+				json.Unmarshal(message, &msg)
+				a.onUpdateClientMsg(client, msg)
+			case "CreateSession":
 				a.onCreateSessionMsg(client)
-			case "add-session-client":
+			case "AddSessionClient":
 				msg := AddSessionClientMsg{}
 				json.Unmarshal(message, &msg)
 				a.onAddSessionClientMsg(client, msg)
-			case "broadcast-to-session":
+			case "BroadcastToSession":
 				msg := BroadcastToSessionMsg{}
 				json.Unmarshal(message, &msg)
 				a.onBroadcastToSessionMsg(client, msg)
@@ -146,6 +115,11 @@ func (a *App) serveWs(w http.ResponseWriter, r *http.Request) {
 		}
 
 	}
+}
+
+func (a *App) onUpdateClientMsg(senderClient Client, msg UpdateClientMsg) {
+	senderClient.Name = msg.Name
+	senderClient.conn.WriteJSON(senderClient)
 }
 
 func (a *App) onCreateSessionMsg(senderClient Client) {
@@ -157,17 +131,24 @@ func (a *App) onCreateSessionMsg(senderClient Client) {
 	}
 	a.SessionMap[session.ID] = session
 	fmt.Println("Created session", session)
-	infoMsg := InfoMsg{
-		Type:    "info",
-		Message: "Created session succesfully",
-	}
-	senderClient.conn.WriteJSON(infoMsg)
+	senderClient.activeSessionID = session.ID
+	senderClient.conn.WriteJSON(session)
 }
 
 func (a *App) onAddSessionClientMsg(senderClient Client, msg AddSessionClientMsg) {
 	session, sessionExists := a.SessionMap[msg.SessionID]
 	if sessionExists {
-		session.ClientIDs = append(session.ClientIDs, msg.AddClientID)
+		if client, ok := a.ClientMap[msg.AddClientID]; ok {
+			session.ClientIDs = append(session.ClientIDs, msg.AddClientID)
+			client.activeSessionID = session.ID
+			client.conn.WriteJSON(session)
+		} else {
+			errMsg := ErrorMsg{
+				Type:    "error",
+				Message: "No client with ID " + msg.AddClientID,
+			}
+			senderClient.conn.WriteJSON(errMsg)
+		}
 	} else {
 		errMsg := ErrorMsg{
 			Type:    "error",
@@ -178,6 +159,29 @@ func (a *App) onAddSessionClientMsg(senderClient Client, msg AddSessionClientMsg
 	fmt.Println("Created session", session)
 }
 
-func (a *App) onBroadcastToSessionMsg(senderClient Client, msg BroadcastToSessionMsg) {
+// Map - Apply function to all elements of a slice
+func Map(vs []string, f func(string) string) []string {
+	vsm := make([]string, len(vs))
+	for i, v := range vs {
+		vsm[i] = f(v)
+	}
+	return vsm
+}
 
+func (a *App) onBroadcastToSessionMsg(senderClient Client, inboundMsg BroadcastToSessionMsg) {
+	session, sessionExists := a.SessionMap[senderClient.activeSessionID]
+	if sessionExists {
+		outboundMsg := BroadcastFromSessionMsg{
+			Type:             "broadcast-from-session",
+			FromSessionOwner: session.OwnerID == senderClient.ID,
+			SenderID:         senderClient.ID,
+			Payload:          inboundMsg.Payload,
+		}
+		for _, clientID := range session.ClientIDs {
+			client := a.ClientMap[clientID]
+			if clientID != senderClient.ID {
+				client.conn.WriteJSON(outboundMsg)
+			}
+		}
+	}
 }

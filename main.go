@@ -1,6 +1,12 @@
 package main
 
+import "os"
+
 func main() {
-	app := &App{}
-	app.Init()
+	if os.Args[1] == "-ts" {
+		convertToTS()
+	} else {
+		app := App{}
+		app.Init()
+	}
 }
