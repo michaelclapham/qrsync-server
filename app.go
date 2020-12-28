@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/gorilla/handlers"
@@ -22,21 +24,55 @@ type App struct {
 
 // Client - Connected client
 type Client struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-	conn *websocket.Conn
+	ID              string `json:"id"`
+	Name            string `json:"name"`
+	conn            *websocket.Conn
+	activeSessionID string
 }
 
 // Session - Session for sharing content
 type Session struct {
-	ID        string   `json:"id"`
-	OwnerID   string   `json:"ownerId"`
-	ClientIDs []string `json:"clientIds"`
+	ID          string   `json:"id"`
+	OwnerID     string   `json:"ownerId"`
+	ClientIDs   []string `json:"clientIds"`
+	createdDate time.Time
 }
 
-// Message - Websocket message
-type Message struct {
-	Type string `json:"type"`
+// AddSessionClientMsg - Websocket message
+type AddSessionClientMsg struct {
+	Type        string `json:"type"`
+	SessionID   string `json:"sessionId"`
+	AddClientID string `json:"addClientId"`
+}
+
+// AddedToSessionMsg -
+type AddedToSessionMsg struct {
+	Type      string `json:"type"`
+	SessionID string `json:"sessionId"`
+}
+
+// BroadcastToSessionMsg -
+type BroadcastToSessionMsg struct {
+	Type    string `json:"type"`
+	Payload interface{}
+}
+
+// BroadcastFromSession -
+type BroadcastFromSession struct {
+	Type     string `json:"type"`
+	SenderID string `json:"senderId"`
+}
+
+// ErrorMsg - Websocket error message
+type ErrorMsg struct {
+	Type    string `json:"type"`
+	Message string `json:"message"`
+}
+
+// InfoMsg - Websocket info message
+type InfoMsg struct {
+	Type    string `json:"type"`
+	Message string `json:"message"`
 }
 
 var upgrader = websocket.Upgrader{
@@ -90,21 +126,58 @@ func (a *App) serveWs(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("We got a message!")
 		fmt.Println(string(message))
 		typeJSONValue := gjson.GetBytes(message, "type")
-		msgType := typeJSONValue.String()
-		fmt.Println("Message type =", msgType)
-		switch msgType {
-		case "create-session":
-			a.onCreateSessionMsg(client)
+		if !typeJSONValue.Exists() {
+			fmt.Println("No message type")
+		} else {
+			msgType := typeJSONValue.String()
+			fmt.Println("Message type =", msgType)
+			switch msgType {
+			case "create-session":
+				a.onCreateSessionMsg(client)
+			case "add-session-client":
+				msg := AddSessionClientMsg{}
+				json.Unmarshal(message, &msg)
+				a.onAddSessionClientMsg(client, msg)
+			case "broadcast-to-session":
+				msg := BroadcastToSessionMsg{}
+				json.Unmarshal(message, &msg)
+				a.onBroadcastToSessionMsg(client, msg)
+			}
 		}
+
 	}
 }
 
-func (a *App) onCreateSessionMsg(client Client) {
+func (a *App) onCreateSessionMsg(senderClient Client) {
 	session := Session{
-		ID:        uuid.NewV4().String(),
-		OwnerID:   client.ID,
-		ClientIDs: make([]string, 0, 2),
+		ID:          uuid.NewV4().String(),
+		OwnerID:     senderClient.ID,
+		ClientIDs:   make([]string, 0, 2),
+		createdDate: time.Now(),
 	}
 	a.SessionMap[session.ID] = session
 	fmt.Println("Created session", session)
+	infoMsg := InfoMsg{
+		Type:    "info",
+		Message: "Created session succesfully",
+	}
+	senderClient.conn.WriteJSON(infoMsg)
+}
+
+func (a *App) onAddSessionClientMsg(senderClient Client, msg AddSessionClientMsg) {
+	session, sessionExists := a.SessionMap[msg.SessionID]
+	if sessionExists {
+		session.ClientIDs = append(session.ClientIDs, msg.AddClientID)
+	} else {
+		errMsg := ErrorMsg{
+			Type:    "error",
+			Message: "No session with ID " + msg.SessionID,
+		}
+		senderClient.conn.WriteJSON(errMsg)
+	}
+	fmt.Println("Created session", session)
+}
+
+func (a *App) onBroadcastToSessionMsg(senderClient Client, msg BroadcastToSessionMsg) {
+
 }
