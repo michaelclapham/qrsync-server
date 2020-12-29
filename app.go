@@ -34,13 +34,13 @@ func (a *App) Init() {
 	a.Router = mux.NewRouter()
 	a.ClientMap = make(map[string]Client)
 	a.SessionMap = make(map[string]Session)
-	a.Router.HandleFunc("/v1/ws", a.serveWs)
+	a.Router.HandleFunc("/api/v1/ws", a.serveWs)
 
 	// @TODO Secure with an admin password
-	a.Router.HandleFunc("/v1/clients", a.getClients)
-	a.Router.HandleFunc("/v1/sessions", a.getSessions)
+	a.Router.HandleFunc("/api/v1/clients", a.getClients)
+	a.Router.HandleFunc("/api/v1/sessions", a.getSessions)
 
-	a.ListenOnPort(4001, false)
+	a.ListenOnPort(4010, false)
 }
 
 func (a *App) getClients(w http.ResponseWriter, r *http.Request) {
