@@ -24,6 +24,9 @@ type App struct {
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
 }
 
 // Init - Initialises app
@@ -78,7 +81,7 @@ func (a *App) serveWs(w http.ResponseWriter, r *http.Request) {
 		return nil
 	})
 	connectMsg := ClientConnectMsg{
-		Type:   "client-connect",
+		Type:   "ClientConnect",
 		Client: client,
 	}
 	conn.WriteJSON(connectMsg)

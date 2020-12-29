@@ -15,6 +15,7 @@ func convertToTS() {
 		Add(Client{}).
 		Add(Session{}).
 		Add(ClientConnectMsg{}).
+		Add(CreateSessionMsg{}).
 		Add(UpdateClientMsg{}).
 		Add(AddSessionClientMsg{}).
 		Add(AddedToSessionMsg{}).
@@ -58,6 +59,11 @@ type Session struct {
 	OwnerID     string   `json:"ownerId"`
 	ClientIDs   []string `json:"clientIds"`
 	createdDate time.Time
+}
+
+// CreateSessionMsg - Sent from client to create session
+type CreateSessionMsg struct {
+	Type string `json:"type"`
 }
 
 // ClientConnectMsg - Sent to client on connecting
