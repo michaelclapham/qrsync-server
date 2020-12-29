@@ -81,15 +81,17 @@ type UpdateClientMsg struct {
 
 // AddSessionClientMsg - Websocket message
 type AddSessionClientMsg struct {
-	Type      string `json:"type"`
-	SessionID string `json:"sessionId"`
+	Type        string `json:"type"`
+	SessionID   string `json:"sessionId"`
+	AddClientID string `json:"addClientId"`
 }
 
 // ClientJoinedSessionMsg -
 type ClientJoinedSessionMsg struct {
-	Type      string `json:"type"`
-	ClientID  string `json:"clientId"`
-	SessionID string `json:"sessionId"`
+	Type           string `json:"type"`
+	ClientID       string `json:"clientId"`
+	SessionID      string `json:"sessionId"`
+	SessionOwnerID string `json:"sessionOwnerId"`
 }
 
 // ClientLeftSessionMsg -

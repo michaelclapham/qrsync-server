@@ -60,10 +60,8 @@ func (a *App) getSessionClients(sessionID string) []Client {
 			clientsSlice[i] = a.ClientMap[clientID]
 		}
 		return clientsSlice
-	} else {
-		return []Client{}
 	}
-
+	return []Client{}
 }
 
 // ListenOnPort Starts the app listening on the provided port
@@ -172,7 +170,13 @@ func (a *App) onAddSessionClientMsg(senderClient Client, msg AddSessionClientMsg
 		if client, ok := a.ClientMap[msg.AddClientID]; ok {
 			session.ClientIDs = append(session.ClientIDs, msg.AddClientID)
 			client.activeSessionID = session.ID
-			client.conn.WriteJSON(session)
+			joinMsg := ClientJoinedSessionMsg{
+				Type:           "ClientJoinedSession",
+				ClientID:       msg.AddClientID,
+				SessionID:      session.ID,
+				SessionOwnerID: session.OwnerID,
+			}
+			client.conn.WriteJSON(joinMsg)
 		} else {
 			errMsg := ErrorMsg{
 				Type:    "error",

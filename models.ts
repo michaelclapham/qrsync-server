@@ -31,6 +31,7 @@ export namespace ServerTypes {
         type: "ClientJoinedSession";
         clientId: string;
         sessionId: string;
+        sessionOwnerId: string;
     }
     export interface ClientLeftSessionMsg {
         type: "ClientLeftSession";
