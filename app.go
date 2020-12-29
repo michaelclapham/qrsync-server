@@ -135,7 +135,11 @@ func (a *App) onCreateSessionMsg(senderClient Client) {
 	a.SessionMap[session.ID] = session
 	fmt.Println("Created session", session)
 	senderClient.activeSessionID = session.ID
-	senderClient.conn.WriteJSON(session)
+	addedMsg := AddedToSessionMsg{
+		Type:      "AddedToSession",
+		SessionID: session.ID,
+	}
+	senderClient.conn.WriteJSON(addedMsg)
 }
 
 func (a *App) onAddSessionClientMsg(senderClient Client, msg AddSessionClientMsg) {
