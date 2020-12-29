@@ -53,6 +53,19 @@ func (a *App) getSessions(w http.ResponseWriter, r *http.Request) {
 	w.Write(res)
 }
 
+func (a *App) getSessionClients(sessionID string) []Client {
+	if session, ok := a.SessionMap[sessionID]; ok {
+		clientsSlice := make([]Client, len(session.ClientIDs))
+		for i, clientID := range session.ClientIDs {
+			clientsSlice[i] = a.ClientMap[clientID]
+		}
+		return clientsSlice
+	} else {
+		return []Client{}
+	}
+
+}
+
 // ListenOnPort Starts the app listening on the provided port
 func (a *App) ListenOnPort(port int, useSSL bool) error {
 	fmt.Println("Starting server on port ", port, " use ssl ", useSSL)
@@ -77,6 +90,17 @@ func (a *App) serveWs(w http.ResponseWriter, r *http.Request) {
 	a.ClientMap[client.ID] = client
 	conn.SetCloseHandler(func(_ int, _ string) error {
 		fmt.Println("Connection closed ", r.RemoteAddr)
+		fmt.Println("Informing session that client left, id ", client.ID)
+		for _, otherClient := range a.getSessionClients(client.activeSessionID) {
+			if otherClient.ID != client.ID {
+				clientLeftMsg := ClientLeftSessionMsg{
+					Type:      "ClientLeftSession",
+					ClientID:  client.ID,
+					SessionID: client.activeSessionID,
+				}
+				otherClient.conn.WriteJSON(clientLeftMsg)
+			}
+		}
 		delete(a.ClientMap, client.ID)
 		return nil
 	})
@@ -122,7 +146,6 @@ func (a *App) serveWs(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) onUpdateClientMsg(senderClient Client, msg UpdateClientMsg) {
 	senderClient.Name = msg.Name
-	senderClient.conn.WriteJSON(senderClient)
 }
 
 func (a *App) onCreateSessionMsg(senderClient Client) {
@@ -135,8 +158,9 @@ func (a *App) onCreateSessionMsg(senderClient Client) {
 	a.SessionMap[session.ID] = session
 	fmt.Println("Created session", session)
 	senderClient.activeSessionID = session.ID
-	addedMsg := AddedToSessionMsg{
-		Type:      "AddedToSession",
+	addedMsg := ClientJoinedSessionMsg{
+		Type:      "ClientJoinedSession",
+		ClientID:  senderClient.ID,
 		SessionID: session.ID,
 	}
 	senderClient.conn.WriteJSON(addedMsg)

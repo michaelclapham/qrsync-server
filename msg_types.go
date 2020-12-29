@@ -18,7 +18,8 @@ func convertToTS() {
 		Add(CreateSessionMsg{}).
 		Add(UpdateClientMsg{}).
 		Add(AddSessionClientMsg{}).
-		Add(AddedToSessionMsg{}).
+		Add(ClientJoinedSessionMsg{}).
+		Add(ClientLeftSessionMsg{}).
 		Add(BroadcastToSessionMsg{}).
 		Add(BroadcastFromSessionMsg{}).
 		Add(ErrorMsg{}).
@@ -80,14 +81,21 @@ type UpdateClientMsg struct {
 
 // AddSessionClientMsg - Websocket message
 type AddSessionClientMsg struct {
-	Type        string `json:"type"`
-	SessionID   string `json:"sessionId"`
-	AddClientID string `json:"addClientId"`
+	Type      string `json:"type"`
+	SessionID string `json:"sessionId"`
 }
 
-// AddedToSessionMsg -
-type AddedToSessionMsg struct {
+// ClientJoinedSessionMsg -
+type ClientJoinedSessionMsg struct {
 	Type      string `json:"type"`
+	ClientID  string `json:"clientId"`
+	SessionID string `json:"sessionId"`
+}
+
+// ClientLeftSessionMsg -
+type ClientLeftSessionMsg struct {
+	Type      string `json:"type"`
+	ClientID  string `json:"clientId"`
 	SessionID string `json:"sessionId"`
 }
 

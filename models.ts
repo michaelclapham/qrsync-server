@@ -1,5 +1,5 @@
 export namespace ServerTypes {
-    export type Msg = ClientConnectMsg | CreateSessionMsg | UpdateClientMsg | AddSessionClientMsg | AddedToSessionMsg | BroadcastToSessionMsg | BroadcastFromSessionMsg | ErrorMsg | InfoMsg
+    export type Msg = ClientConnectMsg | CreateSessionMsg | UpdateClientMsg | AddSessionClientMsg | ClientJoinedSessionMsg | ClientLeftSessionMsg | BroadcastToSessionMsg | BroadcastFromSessionMsg | ErrorMsg | InfoMsg
 
     export interface Client {
         id: string;
@@ -27,8 +27,14 @@ export namespace ServerTypes {
         sessionId: string;
         addClientId: string;
     }
-    export interface AddedToSessionMsg {
-        type: "AddedToSession";
+    export interface ClientJoinedSessionMsg {
+        type: "ClientJoinedSession";
+        clientId: string;
+        sessionId: string;
+    }
+    export interface ClientLeftSessionMsg {
+        type: "ClientLeftSession";
+        clientId: string;
         sessionId: string;
     }
     export interface BroadcastToSessionMsg {
