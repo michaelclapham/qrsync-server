@@ -16,6 +16,7 @@ import (
 
 // App Stores the state of our web server
 type App struct {
+	IDCounter  int
 	Router     *mux.Router
 	ClientMap  map[string]Client
 	SessionMap map[string]Session
@@ -147,8 +148,9 @@ func (a *App) onUpdateClientMsg(senderClient Client, msg UpdateClientMsg) {
 }
 
 func (a *App) onCreateSessionMsg(senderClient Client) {
+	a.IDCounter = a.IDCounter + 1
 	session := Session{
-		ID:          uuid.NewV4().String(),
+		ID:          fmt.Sprint(a.IDCounter),
 		OwnerID:     senderClient.ID,
 		ClientIDs:   make([]string, 0, 2),
 		createdDate: time.Now(),
