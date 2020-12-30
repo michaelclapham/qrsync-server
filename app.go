@@ -81,8 +81,9 @@ func (a *App) serveWs(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		return
 	}
+	a.IDCounter++
 	client := Client{
-		ID:         uuid.NewV4().String(),
+		ID:         fmt.Sprint(a.IDCounter),
 		RemoteAddr: r.RemoteAddr,
 		conn:       conn,
 	}
@@ -148,9 +149,9 @@ func (a *App) onUpdateClientMsg(senderClient Client, msg UpdateClientMsg) {
 }
 
 func (a *App) onCreateSessionMsg(senderClient Client) {
-	a.IDCounter = a.IDCounter + 1
+	a.IDCounter++
 	session := Session{
-		ID:          fmt.Sprint(a.IDCounter),
+		ID:          uuid.NewV5().String(),
 		OwnerID:     senderClient.ID,
 		ClientIDs:   make([]string, 0, 2),
 		createdDate: time.Now(),
