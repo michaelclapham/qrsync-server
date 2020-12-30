@@ -10,5 +10,5 @@ WORKDIR $APP_HOME
 USER $APP_USER
 COPY . $APP_HOME
 RUN go build -o qrsync_server
-EXPOSE 4001
+EXPOSE 4010
 CMD ["./qrsync_server"]
