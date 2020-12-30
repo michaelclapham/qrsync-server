@@ -6,6 +6,7 @@ docker build -t qrsync_server .
 EXISTING_CONTAINER_ID=$(docker container ls --format "table {{.ID}}\t{{.Ports}}" -a | grep "4010->4010" | awk '{print $1}')
 if [ ! -z EXISTING_CONTAINER_ID ]
 then
+    echo "Stoping existing container using port 4010..."
     docker stop $EXISTING_CONTAINER_ID || true
 fi
 
