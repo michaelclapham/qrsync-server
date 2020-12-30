@@ -16,10 +16,10 @@ import (
 
 // App Stores the state of our web server
 type App struct {
-	IDCounter  int
-	Router     *mux.Router
-	ClientMap  map[string]Client
-	SessionMap map[string]Session
+	QRIDCounter int
+	Router      *mux.Router
+	ClientMap   map[string]Client
+	SessionMap  map[string]Session
 }
 
 var upgrader = websocket.Upgrader{
@@ -32,6 +32,7 @@ var upgrader = websocket.Upgrader{
 
 // Init - Initialises app
 func (a *App) Init() {
+	a.QRIDCounter = 0
 	a.Router = mux.NewRouter()
 	a.ClientMap = make(map[string]Client)
 	a.SessionMap = make(map[string]Session)
@@ -81,9 +82,9 @@ func (a *App) serveWs(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		return
 	}
-	a.IDCounter++
+	a.QRIDCounter++
 	client := Client{
-		ID:         fmt.Sprint(a.IDCounter),
+		ID:         fmt.Sprint(a.QRIDCounter),
 		RemoteAddr: r.RemoteAddr,
 		conn:       conn,
 	}
@@ -149,9 +150,8 @@ func (a *App) onUpdateClientMsg(senderClient Client, msg UpdateClientMsg) {
 }
 
 func (a *App) onCreateSessionMsg(senderClient Client) {
-	a.IDCounter++
 	session := Session{
-		ID:          uuid.NewV5().String(),
+		ID:          uuid.NewV4().String(),
 		OwnerID:     senderClient.ID,
 		ClientIDs:   make([]string, 0, 2),
 		createdDate: time.Now(),
