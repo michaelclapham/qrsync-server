@@ -4,7 +4,8 @@ ENV APP_USER qrsync_user
 ENV GO111MODULE=on \
     CGO_ENABLED=0 \
     GOOS=linux \
-    GOARCH=amd64
+    GOARCH=amd64 \
+    GOPATH=
 
 RUN groupadd $APP_USER && useradd -m -g $APP_USER -l $APP_USER
 
