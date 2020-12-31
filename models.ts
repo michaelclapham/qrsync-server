@@ -3,7 +3,6 @@ export namespace ServerTypes {
 
     export interface Client {
         id: string;
-        remoteAddr: string;
         name: string;
     }
     export interface Session {
@@ -17,6 +16,7 @@ export namespace ServerTypes {
     }
     export interface CreateSessionMsg {
         type: "CreateSession";
+        addClientId: string;
     }
     export interface UpdateClientMsg {
         type: "UpdateClient";
@@ -32,11 +32,14 @@ export namespace ServerTypes {
         clientId: string;
         sessionId: string;
         sessionOwnerId: string;
+        clientMap: {[key: string]: Client};
     }
     export interface ClientLeftSessionMsg {
         type: "ClientLeftSession";
         clientId: string;
         sessionId: string;
+        sessionOwnerId: string;
+        clientMap: {[key: string]: Client};
     }
     export interface BroadcastToSessionMsg {
         type: "BroadcastToSession";

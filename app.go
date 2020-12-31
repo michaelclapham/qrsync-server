@@ -83,9 +83,8 @@ func (a *App) serveWs(w http.ResponseWriter, r *http.Request) {
 	}
 	a.QRIDCounter++
 	client := Client{
-		ID:         fmt.Sprint(a.QRIDCounter),
-		RemoteAddr: r.RemoteAddr,
-		conn:       conn,
+		ID:   fmt.Sprint(a.QRIDCounter),
+		conn: conn,
 	}
 	a.ClientMap[client.ID] = client
 	conn.SetCloseHandler(func(_ int, _ string) error {
@@ -106,6 +105,7 @@ func (a *App) serveWs(w http.ResponseWriter, r *http.Request) {
 					ClientID:       client.ID,
 					SessionID:      client.activeSessionID,
 					SessionOwnerID: sessionOwnerID,
+					ClientMap:      a.getSessionClientMap(client.activeSessionID),
 				}
 				otherClient.conn.WriteJSON(clientLeftMsg)
 			}
@@ -139,11 +139,13 @@ func (a *App) serveWs(w http.ResponseWriter, r *http.Request) {
 				json.Unmarshal(message, &msg)
 				a.onUpdateClientMsg(senderClient, msg)
 			case "CreateSession":
-				a.onCreateSessionMsg(client)
+				msg := CreateSessionMsg{}
+				json.Unmarshal(message, &msg)
+				a.onCreateSessionMsg(client, msg)
 			case "AddSessionClient":
 				msg := AddSessionClientMsg{}
 				json.Unmarshal(message, &msg)
-				a.onAddSessionClientMsg(senderClient, msg)
+				a.onAddSessionClientMsg(senderClient, msg, true)
 			case "BroadcastToSession":
 				msg := BroadcastToSessionMsg{}
 				json.Unmarshal(message, &msg)
@@ -158,27 +160,31 @@ func (a *App) onUpdateClientMsg(senderClient Client, msg UpdateClientMsg) {
 	senderClient.Name = msg.Name
 }
 
-func (a *App) onCreateSessionMsg(senderClient Client) {
+func (a *App) onCreateSessionMsg(senderClient Client, msg CreateSessionMsg) {
 	a.QRIDCounter++
 	session := Session{
 		ID:          fmt.Sprint(a.QRIDCounter),
 		OwnerID:     senderClient.ID,
-		ClientIDs:   []string{senderClient.ID},
+		ClientIDs:   []string{},
 		createdDate: time.Now(),
+	}
+	clientIDsToAdd := []string{senderClient.ID}
+	if _, ok := a.ClientMap[msg.AddClientID]; ok {
+		clientIDsToAdd = append(clientIDsToAdd, msg.AddClientID)
 	}
 	a.SessionMap[session.ID] = session
 	fmt.Println("Created session", session)
-	senderClient.activeSessionID = session.ID
-	a.ClientMap[senderClient.ID] = senderClient
-	addedMsg := ClientJoinedSessionMsg{
-		Type:      "ClientJoinedSession",
-		ClientID:  senderClient.ID,
-		SessionID: session.ID,
+	for _, clientID := range clientIDsToAdd {
+		addSessionClientMsg := AddSessionClientMsg{
+			Type:        "AddSessionClient",
+			SessionID:   session.ID,
+			AddClientID: clientID,
+		}
+		a.onAddSessionClientMsg(senderClient, addSessionClientMsg, false)
 	}
-	senderClient.conn.WriteJSON(addedMsg)
 }
 
-func (a *App) onAddSessionClientMsg(senderClient Client, msg AddSessionClientMsg) {
+func (a *App) onAddSessionClientMsg(senderClient Client, msg AddSessionClientMsg, replyToSender bool) {
 	session, sessionExists := a.SessionMap[msg.SessionID]
 	if sessionExists {
 		if client, ok := a.ClientMap[msg.AddClientID]; ok {
@@ -193,7 +199,9 @@ func (a *App) onAddSessionClientMsg(senderClient Client, msg AddSessionClientMsg
 				SessionOwnerID: session.OwnerID,
 				ClientMap:      a.getSessionClientMap(session.ID),
 			}
-			senderClient.conn.WriteJSON(joinMsg)
+			if replyToSender {
+				senderClient.conn.WriteJSON(joinMsg)
+			}
 			client.conn.WriteJSON(joinMsg)
 		} else {
 			errMsg := ErrorMsg{

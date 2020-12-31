@@ -48,7 +48,6 @@ func convertToTS() {
 // Client - Connected client
 type Client struct {
 	ID              string `json:"id"`
-	RemoteAddr      string `json:"remoteAddr"`
 	Name            string `json:"name"`
 	conn            *websocket.Conn
 	activeSessionID string
@@ -64,7 +63,8 @@ type Session struct {
 
 // CreateSessionMsg - Sent from client to create session
 type CreateSessionMsg struct {
-	Type string `json:"type"`
+	Type        string `json:"type"`
+	AddClientID string `json:"addClientId"`
 }
 
 // ClientConnectMsg - Sent to client on connecting
