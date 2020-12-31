@@ -88,17 +88,20 @@ type AddSessionClientMsg struct {
 
 // ClientJoinedSessionMsg -
 type ClientJoinedSessionMsg struct {
-	Type           string `json:"type"`
-	ClientID       string `json:"clientId"`
-	SessionID      string `json:"sessionId"`
-	SessionOwnerID string `json:"sessionOwnerId"`
+	Type           string            `json:"type"`
+	ClientID       string            `json:"clientId"`
+	SessionID      string            `json:"sessionId"`
+	SessionOwnerID string            `json:"sessionOwnerId"`
+	ClientMap      map[string]Client `json:"clientMap"`
 }
 
 // ClientLeftSessionMsg -
 type ClientLeftSessionMsg struct {
-	Type      string `json:"type"`
-	ClientID  string `json:"clientId"`
-	SessionID string `json:"sessionId"`
+	Type           string            `json:"type"`
+	ClientID       string            `json:"clientId"`
+	SessionID      string            `json:"sessionId"`
+	SessionOwnerID string            `json:"sessionOwnerId"`
+	ClientMap      map[string]Client `json:"clientMap"`
 }
 
 // BroadcastToSessionMsg -

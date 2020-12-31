@@ -11,7 +11,6 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/tidwall/gjson"
-	"github.com/twinj/uuid"
 )
 
 // App Stores the state of our web server
@@ -55,15 +54,15 @@ func (a *App) getSessions(w http.ResponseWriter, r *http.Request) {
 	w.Write(res)
 }
 
-func (a *App) getSessionClients(sessionID string) []Client {
+func (a *App) getSessionClientMap(sessionID string) map[string]Client {
 	if session, ok := a.SessionMap[sessionID]; ok {
-		clientsSlice := make([]Client, len(session.ClientIDs))
-		for i, clientID := range session.ClientIDs {
-			clientsSlice[i] = a.ClientMap[clientID]
+		sessionClientMap := make(map[string]Client, len(session.ClientIDs))
+		for _, clientID := range session.ClientIDs {
+			sessionClientMap[clientID] = a.ClientMap[clientID]
 		}
-		return clientsSlice
+		return sessionClientMap
 	}
-	return []Client{}
+	return map[string]Client{}
 }
 
 // ListenOnPort Starts the app listening on the provided port
@@ -92,12 +91,21 @@ func (a *App) serveWs(w http.ResponseWriter, r *http.Request) {
 	conn.SetCloseHandler(func(_ int, _ string) error {
 		fmt.Println("Connection closed ", r.RemoteAddr)
 		fmt.Println("Informing session that client left, id ", client.ID)
-		for _, otherClient := range a.getSessionClients(client.activeSessionID) {
+		for _, otherClient := range a.getSessionClientMap(client.activeSessionID) {
 			if otherClient.ID != client.ID {
+				sessionOwnerID := ""
+				if session, ok := a.SessionMap[sessionOwnerID]; ok {
+					sessionOwnerID = session.OwnerID
+					session.ClientIDs = filter(session.ClientIDs, func(ID string) bool {
+						return client.ID == ID
+					})
+					a.SessionMap[session.ID] = session
+				}
 				clientLeftMsg := ClientLeftSessionMsg{
-					Type:      "ClientLeftSession",
-					ClientID:  client.ID,
-					SessionID: client.activeSessionID,
+					Type:           "ClientLeftSession",
+					ClientID:       client.ID,
+					SessionID:      client.activeSessionID,
+					SessionOwnerID: sessionOwnerID,
 				}
 				otherClient.conn.WriteJSON(clientLeftMsg)
 			}
@@ -122,23 +130,24 @@ func (a *App) serveWs(w http.ResponseWriter, r *http.Request) {
 		if !typeJSONValue.Exists() {
 			fmt.Println("No message type")
 		} else {
+			senderClient := a.ClientMap[client.ID]
 			msgType := typeJSONValue.String()
 			fmt.Println("Message type =", msgType)
 			switch msgType {
 			case "UpdateClient":
 				msg := UpdateClientMsg{}
 				json.Unmarshal(message, &msg)
-				a.onUpdateClientMsg(client, msg)
+				a.onUpdateClientMsg(senderClient, msg)
 			case "CreateSession":
 				a.onCreateSessionMsg(client)
 			case "AddSessionClient":
 				msg := AddSessionClientMsg{}
 				json.Unmarshal(message, &msg)
-				a.onAddSessionClientMsg(client, msg)
+				a.onAddSessionClientMsg(senderClient, msg)
 			case "BroadcastToSession":
 				msg := BroadcastToSessionMsg{}
 				json.Unmarshal(message, &msg)
-				a.onBroadcastToSessionMsg(client, msg)
+				a.onBroadcastToSessionMsg(senderClient, msg)
 			}
 		}
 
@@ -150,15 +159,17 @@ func (a *App) onUpdateClientMsg(senderClient Client, msg UpdateClientMsg) {
 }
 
 func (a *App) onCreateSessionMsg(senderClient Client) {
+	a.QRIDCounter++
 	session := Session{
-		ID:          uuid.NewV4().String(),
+		ID:          fmt.Sprint(a.QRIDCounter),
 		OwnerID:     senderClient.ID,
-		ClientIDs:   make([]string, 0, 2),
+		ClientIDs:   []string{senderClient.ID},
 		createdDate: time.Now(),
 	}
 	a.SessionMap[session.ID] = session
 	fmt.Println("Created session", session)
 	senderClient.activeSessionID = session.ID
+	a.ClientMap[senderClient.ID] = senderClient
 	addedMsg := ClientJoinedSessionMsg{
 		Type:      "ClientJoinedSession",
 		ClientID:  senderClient.ID,
@@ -172,13 +183,17 @@ func (a *App) onAddSessionClientMsg(senderClient Client, msg AddSessionClientMsg
 	if sessionExists {
 		if client, ok := a.ClientMap[msg.AddClientID]; ok {
 			session.ClientIDs = append(session.ClientIDs, msg.AddClientID)
+			a.SessionMap[session.ID] = session
 			client.activeSessionID = session.ID
+			a.ClientMap[client.ID] = client
 			joinMsg := ClientJoinedSessionMsg{
 				Type:           "ClientJoinedSession",
 				ClientID:       msg.AddClientID,
 				SessionID:      session.ID,
 				SessionOwnerID: session.OwnerID,
+				ClientMap:      a.getSessionClientMap(session.ID),
 			}
+			senderClient.conn.WriteJSON(joinMsg)
 			client.conn.WriteJSON(joinMsg)
 		} else {
 			errMsg := ErrorMsg{
@@ -206,20 +221,27 @@ func Map(vs []string, f func(string) string) []string {
 	return vsm
 }
 
+func filter(ss []string, test func(string) bool) (ret []string) {
+	for _, s := range ss {
+		if test(s) {
+			ret = append(ret, s)
+		}
+	}
+	return
+}
+
 func (a *App) onBroadcastToSessionMsg(senderClient Client, inboundMsg BroadcastToSessionMsg) {
 	session, sessionExists := a.SessionMap[senderClient.activeSessionID]
 	if sessionExists {
 		outboundMsg := BroadcastFromSessionMsg{
-			Type:             "broadcast-from-session",
+			Type:             "BroadcastFromSession",
 			FromSessionOwner: session.OwnerID == senderClient.ID,
 			SenderID:         senderClient.ID,
 			Payload:          inboundMsg.Payload,
 		}
 		for _, clientID := range session.ClientIDs {
 			client := a.ClientMap[clientID]
-			if clientID != senderClient.ID {
-				client.conn.WriteJSON(outboundMsg)
-			}
+			client.conn.WriteJSON(outboundMsg)
 		}
 	}
 }
