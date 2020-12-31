@@ -158,6 +158,10 @@ func (a *App) serveWs(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) onUpdateClientMsg(senderClient Client, msg UpdateClientMsg) {
 	senderClient.Name = msg.Name
+	a.ClientMap[senderClient.ID] = senderClient
+	for _, client := range a.ClientMap {
+		client.conn.WriteJSON(msg)
+	}
 }
 
 func (a *App) onCreateSessionMsg(senderClient Client, msg CreateSessionMsg) {
