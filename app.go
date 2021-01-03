@@ -75,15 +75,26 @@ func (a *App) ListenOnPort(port int, useSSL bool) error {
 }
 
 func (a *App) serveWs(w http.ResponseWriter, r *http.Request) {
+	a.QRIDCounter++
+	newClientID := fmt.Sprint(a.QRIDCounter)
+
+	/* Allow client to reconnect with old id */
+	rejoinClientID := r.URL.Query().Get("clientId")
+	if len(rejoinClientID) > 0 {
+		if _, alreadyConnected := a.ClientMap[rejoinClientID]; !alreadyConnected {
+			newClientID = rejoinClientID
+		}
+	}
+
 	fmt.Println("Connection from ", r.RemoteAddr)
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println(err)
 		return
 	}
-	a.QRIDCounter++
+
 	client := Client{
-		ID:   fmt.Sprint(a.QRIDCounter),
+		ID:   newClientID,
 		conn: conn,
 	}
 	a.ClientMap[client.ID] = client
