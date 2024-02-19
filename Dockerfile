@@ -1,4 +1,4 @@
-FROM golang:1.15-buster
+FROM golang:1.22-bookworm
 
 ENV APP_USER qrsync_user
 ENV GO111MODULE=on \
