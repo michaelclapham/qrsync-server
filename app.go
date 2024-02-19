@@ -41,7 +41,7 @@ func (a *App) Init() {
 	a.Router.HandleFunc("/api/v1/clients", a.getClients)
 	a.Router.HandleFunc("/api/v1/sessions", a.getSessions)
 
-	a.ListenOnPort(4010, false)
+	log.Fatal(a.ListenOnPort(4010, false))
 }
 
 func (a *App) getClients(w http.ResponseWriter, r *http.Request) {
