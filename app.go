@@ -153,10 +153,10 @@ func (a *App) serveWs(w http.ResponseWriter, r *http.Request) {
 				msg := CreateSessionMsg{}
 				json.Unmarshal(message, &msg)
 				a.onCreateSessionMsg(client, msg)
-			case "AddSessionClient":
-				msg := AddSessionClientMsg{}
+			case "AddClientToSession":
+				msg := AddClientToSessionMsg{}
 				json.Unmarshal(message, &msg)
-				a.onAddSessionClientMsg(senderClient, msg, true)
+				a.onAddClientToSessionMsg(senderClient, msg, true)
 			case "BroadcastToSession":
 				msg := BroadcastToSessionMsg{}
 				json.Unmarshal(message, &msg)
@@ -190,16 +190,16 @@ func (a *App) onCreateSessionMsg(senderClient Client, msg CreateSessionMsg) {
 	a.SessionMap[session.ID] = session
 	fmt.Println("Created session", session)
 	for _, clientID := range clientIDsToAdd {
-		addSessionClientMsg := AddSessionClientMsg{
-			Type:        "AddSessionClient",
+		AddClientToSessionMsg := AddClientToSessionMsg{
+			Type:        "AddClientToSession",
 			SessionID:   session.ID,
 			AddClientID: clientID,
 		}
-		a.onAddSessionClientMsg(senderClient, addSessionClientMsg, false)
+		a.onAddClientToSessionMsg(senderClient, AddClientToSessionMsg, false)
 	}
 }
 
-func (a *App) onAddSessionClientMsg(senderClient Client, msg AddSessionClientMsg, replyToSender bool) {
+func (a *App) onAddClientToSessionMsg(senderClient Client, msg AddClientToSessionMsg, replyToSender bool) {
 	session, sessionExists := a.SessionMap[msg.SessionID]
 	if sessionExists {
 		if client, ok := a.ClientMap[msg.AddClientID]; ok {
