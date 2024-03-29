@@ -51,6 +51,7 @@ type Client struct {
 	Name            string `json:"name"`
 	conn            *websocket.Conn
 	activeSessionID string
+	LastJoinTime    time.Time `json:"lastJoinTime"`
 }
 
 // Session - Session for sharing content

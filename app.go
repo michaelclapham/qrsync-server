@@ -94,9 +94,13 @@ func (a *App) serveWs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	client := Client{
-		ID:   newClientID,
-		conn: conn,
+		ID:           newClientID,
+		conn:         conn,
+		LastJoinTime: time.Now(),
 	}
+
+	a.removeOldClients()
+
 	a.ClientMap[client.ID] = client
 	conn.SetCloseHandler(func(_ int, _ string) error {
 		fmt.Println("Connection closed ", r.RemoteAddr)
@@ -165,6 +169,23 @@ func (a *App) serveWs(w http.ResponseWriter, r *http.Request) {
 		}
 
 	}
+}
+
+/*
+Removes clients that connected over 2 hours ago
+*/
+func (a *App) removeOldClients() {
+	maxClientDuration, err := time.ParseDuration("2h")
+	if err != nil {
+		expiryTime := time.Now().Add(maxClientDuration)
+		for id, client := range a.ClientMap {
+			if client.LastJoinTime.After(expiryTime) {
+				delete(a.ClientMap, id)
+				client.conn.Close()
+			}
+		}
+	}
+
 }
 
 func (a *App) onUpdateClientMsg(senderClient Client, msg UpdateClientMsg) {
