@@ -219,20 +219,13 @@ func (a *App) onCreateSessionMsg(senderClient Client, msg CreateSessionMsg) {
 		ClientIDs:   []string{},
 		createdDate: time.Now(),
 	}
-	clientIDsToAdd := []string{senderClient.ID}
-	if _, ok := a.ClientMap[msg.AddClientID]; ok {
-		clientIDsToAdd = append(clientIDsToAdd, msg.AddClientID)
+	// Add client who created session to session
+	AddClientToSessionMsg := AddClientToSessionMsg{
+		Type:        "AddClientToSession",
+		SessionID:   session.ID,
+		AddClientID: senderClient.ID,
 	}
-	a.SessionMap[session.ID] = session
-	fmt.Println("Created session", session)
-	for _, clientID := range clientIDsToAdd {
-		AddClientToSessionMsg := AddClientToSessionMsg{
-			Type:        "AddClientToSession",
-			SessionID:   session.ID,
-			AddClientID: clientID,
-		}
-		a.onAddClientToSessionMsg(senderClient, AddClientToSessionMsg, false)
-	}
+	a.onAddClientToSessionMsg(senderClient, AddClientToSessionMsg, false)
 }
 
 func (a *App) onAddClientToSessionMsg(senderClient Client, msg AddClientToSessionMsg, replyToSender bool) {
