@@ -17,8 +17,9 @@ import (
 type App struct {
 	QRIDCounter int
 	Router      *mux.Router
-	ClientMap   map[string]Client
-	SessionMap  map[string]Session
+	// TODO: Potentially move to external data store
+	ClientMap  map[string]Client
+	SessionMap map[string]Session
 }
 
 var upgrader = websocket.Upgrader{
@@ -42,6 +43,35 @@ func (a *App) Init() {
 	a.Router.HandleFunc("/api/v1/sessions", a.getSessions)
 
 	log.Fatal(a.ListenOnPort(4010, false))
+}
+
+func (a *App) newClientId() int {
+	a.QRIDCounter++
+	if a.QRIDCounter > 100000 {
+		a.QRIDCounter = 0
+	}
+	return a.QRIDCounter
+}
+
+func (a *App) createClient(r *http.Request, conn *websocket.Conn) Client {
+	newClientID := fmt.Sprint(a.newClientId())
+
+	/* Allow client to reconnect with old id */
+	rejoinClientID := r.URL.Query().Get("clientId")
+	if len(rejoinClientID) > 0 {
+		if _, alreadyConnected := a.ClientMap[rejoinClientID]; !alreadyConnected {
+			newClientID = rejoinClientID
+		}
+	}
+
+	fmt.Println("Connection from ", r.RemoteAddr)
+
+	client := Client{
+		ID:           newClientID,
+		conn:         conn,
+		LastJoinTime: time.Now(),
+	}
+	return client
 }
 
 func (a *App) getClients(w http.ResponseWriter, r *http.Request) {
@@ -75,17 +105,6 @@ func (a *App) ListenOnPort(port int, useSSL bool) error {
 }
 
 func (a *App) serveWs(w http.ResponseWriter, r *http.Request) {
-	a.QRIDCounter++
-	newClientID := fmt.Sprint(a.QRIDCounter)
-
-	/* Allow client to reconnect with old id */
-	rejoinClientID := r.URL.Query().Get("clientId")
-	if len(rejoinClientID) > 0 {
-		if _, alreadyConnected := a.ClientMap[rejoinClientID]; !alreadyConnected {
-			newClientID = rejoinClientID
-		}
-	}
-
 	fmt.Println("Connection from ", r.RemoteAddr)
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -93,13 +112,9 @@ func (a *App) serveWs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client := Client{
-		ID:           newClientID,
-		conn:         conn,
-		LastJoinTime: time.Now(),
-	}
-
 	a.removeOldClients()
+
+	client := a.createClient(r, conn)
 
 	a.ClientMap[client.ID] = client
 	conn.SetCloseHandler(func(_ int, _ string) error {
