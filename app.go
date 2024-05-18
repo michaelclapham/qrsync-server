@@ -41,8 +41,6 @@ func (a *App) Init() {
 	// @TODO Secure with an admin password
 	a.Router.HandleFunc("/api/v1/clients", a.getClients)
 	a.Router.HandleFunc("/api/v1/sessions", a.getSessions)
-
-	log.Fatal(a.ListenOnPort(4010, false))
 }
 
 func (a *App) newClientId() int {
@@ -95,13 +93,17 @@ func (a *App) getSessionClientMap(sessionID string) map[string]Client {
 	return map[string]Client{}
 }
 
+func (a *App) MainHandler() http.Handler {
+	return handlers.CORS()(a.Router)
+}
+
 // ListenOnPort Starts the app listening on the provided port
 func (a *App) ListenOnPort(port int, useSSL bool) error {
 	fmt.Println("Starting server on port ", port, " use ssl ", useSSL)
 	if useSSL {
-		return http.ListenAndServeTLS(fmt.Sprint(":", port), "ssl/server.crt", "ssl/server.key", handlers.CORS()(a.Router))
+		return http.ListenAndServeTLS(fmt.Sprint(":", port), "ssl/server.crt", "ssl/server.key", a.MainHandler())
 	}
-	return http.ListenAndServe(fmt.Sprint(":", port), handlers.CORS()(a.Router))
+	return http.ListenAndServe(fmt.Sprint(":", port), a.MainHandler())
 }
 
 func (a *App) serveWs(w http.ResponseWriter, r *http.Request) {
