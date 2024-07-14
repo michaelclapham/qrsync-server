@@ -27,36 +27,10 @@ func TestServerStarts(t *testing.T) {
 	log.Printf("%s", clientsUrl)
 }
 
-func TestServerStartsAndWebsocketCanConnect(t *testing.T) {
+func SetupServerAndConnect(t *testing.T) (*websocket.Conn, *httptest.Server) {
 	app := App{}
 	app.Init()
 	testServer := httptest.NewServer(app.MainHandler())
-	defer testServer.Close()
-
-	// Convert http://127.0.0.1 to ws://127.0.0.
-	wsUrl := "ws" + strings.TrimPrefix(testServer.URL, "http") + "/api/v1/ws"
-
-	log.Printf("Url %s", wsUrl)
-
-	// Connect to the server
-	ws, _, err := websocket.DefaultDialer.Dial(wsUrl, nil)
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
-	defer ws.Close()
-
-	// Send message to server, read response and check to see if it's what we expect.
-	_, _, err = ws.ReadMessage()
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
-}
-
-func TestFirstMessageIsClientConnect(t *testing.T) {
-	app := App{}
-	app.Init()
-	testServer := httptest.NewServer(app.MainHandler())
-	defer testServer.Close()
 
 	// Convert http://127.0.0.1 to ws://127.0.0/api/v1/ws
 	u := "ws" + strings.TrimPrefix(testServer.URL, "http") + "/api/v1/ws"
@@ -68,7 +42,25 @@ func TestFirstMessageIsClientConnect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%v", err)
 	}
+	return ws, testServer
+}
+
+func TestServerStartsAndWebsocketCanConnect(t *testing.T) {
+	ws, testServer := SetupServerAndConnect(t)
 	defer ws.Close()
+	defer testServer.Close()
+
+	// Send message to server, read response and check to see if it's what we expect.
+	_, _, err := ws.ReadMessage()
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+}
+
+func TestFirstMessageIsClientConnect(t *testing.T) {
+	ws, testServer := SetupServerAndConnect(t)
+	defer ws.Close()
+	defer testServer.Close()
 
 	_, msgBytes, err := ws.ReadMessage()
 	if err != nil {
