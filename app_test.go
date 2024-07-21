@@ -38,6 +38,14 @@ func SetupWsServer(t *testing.T) (*httptest.Server, string) {
 	return testServer, wsUrl
 }
 
+func CloseWithCloseMessage(conn *websocket.Conn) {
+	conn.WriteMessage(
+		websocket.CloseMessage,
+		websocket.FormatCloseMessage(websocket.CloseNormalClosure, "Normal close"),
+	)
+	conn.Close()
+}
+
 func TestServerStartsAndWebsocketCanConnect(t *testing.T) {
 	testServer, wsUrl := SetupWsServer(t)
 	defer testServer.Close()
@@ -46,7 +54,7 @@ func TestServerStartsAndWebsocketCanConnect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to connect to websocket server: %v", err)
 	}
-	defer ws.Close()
+	defer CloseWithCloseMessage(ws)
 
 	// Send message to server, read response and check to see if it's what we expect.
 	_, _, err = ws.ReadMessage()
@@ -63,7 +71,7 @@ func TestFirstMessageIsClientConnect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to connect to websocket server: %v", err)
 	}
-	defer ws.Close()
+	defer CloseWithCloseMessage(ws)
 
 	_, msgBytes, err := ws.ReadMessage()
 	if err != nil {
@@ -85,7 +93,7 @@ func TestFirstMessageHasClient(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to connect to websocket server: %v", err)
 	}
-	defer ws.Close()
+	defer CloseWithCloseMessage(ws)
 
 	_, msgBytes, err := ws.ReadMessage()
 	if err != nil {
@@ -108,7 +116,7 @@ func TestTwoClientsCanConnectAndHaveDifferentIds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to connect to websocket server: %v", err)
 	}
-	defer ws.Close()
+	defer CloseWithCloseMessage(ws)
 
 	_, msgBytes, err := ws.ReadMessage()
 	if err != nil {
@@ -126,7 +134,7 @@ func TestTwoClientsCanConnectAndHaveDifferentIds(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to connect client 1 to websocket server: %v", err)
 	}
-	defer ws2.Close()
+	defer CloseWithCloseMessage(ws)
 
 	_, msgBytes, err = ws2.ReadMessage()
 	if err != nil {
@@ -141,5 +149,79 @@ func TestTwoClientsCanConnectAndHaveDifferentIds(t *testing.T) {
 
 	if client1ConnectMsg.Client.ID == client2ConnectMsg.Client.ID {
 		t.Fatalf("Expected clients to each have unique id but both were %s", client2ConnectMsg.Client.ID)
+	}
+}
+
+func TestClientIsAddedToSessionWhenCreatingSession(t *testing.T) {
+	testServer, wsUrl := SetupWsServer(t)
+	defer testServer.Close()
+
+	// Client 1 connect
+	ws, _, err := websocket.DefaultDialer.Dial(wsUrl, nil)
+	if err != nil {
+		t.Fatalf("Failed to connect to websocket server: %v", err)
+	}
+	defer CloseWithCloseMessage(ws)
+
+	// Received client 1 connect message
+	_, msgBytes, err := ws.ReadMessage()
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+
+	// Parse client 1 connect message json
+	var client1ConnectMsg ClientConnectMsg
+	err = json.Unmarshal(msgBytes, &client1ConnectMsg)
+	if err != nil {
+		t.Fatalf("Error parsing client1 message json as ClientConnectMsg: %v", err)
+	}
+
+	// Client 2 connect
+	ws2, _, err := websocket.DefaultDialer.Dial(wsUrl, nil)
+	if err != nil {
+		t.Fatalf("Failed to connect client 1 to websocket server: %v", err)
+	}
+	defer CloseWithCloseMessage(ws)
+
+	// Received client 2 connect message
+	_, msgBytes, err = ws2.ReadMessage()
+	if err != nil {
+		t.Fatalf("Failed to connect client 2 to websocket server: %v", err)
+	}
+
+	// Parse client 2 connect message json
+	var client2ConnectMsg ClientConnectMsg
+	err = json.Unmarshal(msgBytes, &client2ConnectMsg)
+	if err != nil {
+		t.Fatalf("Error parsing client2 message json as ClientConnectMsg: %v", err)
+	}
+
+	if client1ConnectMsg.Client.ID == client2ConnectMsg.Client.ID {
+		t.Fatalf("Expected clients to each have unique id but both were %s", client2ConnectMsg.Client.ID)
+	}
+
+	// Client 1 creates session
+	createSessionMsg := CreateSessionMsg{
+		Type: "CreateSession",
+	}
+	err = ws.WriteJSON(createSessionMsg)
+	if err != nil {
+		t.Fatalf("Failed to send CreateSessionMsg %v", err)
+	}
+
+	// Client 1 should receive a message that it was added to the new session
+	_, msgBytes, _ = ws.ReadMessage()
+	msgString := string(msgBytes)
+	log.Printf("msg string %s", msgString)
+	var client1AddedToSessionMsg ClientJoinedSessionMsg
+	err = json.Unmarshal(msgBytes, &client1AddedToSessionMsg)
+	if err != nil {
+		t.Fatalf("Error parsing ClientJoinedSessionMsg")
+	}
+	if client1AddedToSessionMsg.SessionOwnerID != client1ConnectMsg.Client.ID {
+		t.Fatalf(
+			"Expected session owner client to be first client that connected with id %s",
+			client1ConnectMsg.Client.ID,
+		)
 	}
 }
