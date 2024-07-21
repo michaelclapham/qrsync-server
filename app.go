@@ -221,6 +221,7 @@ func (a *App) onCreateSessionMsg(senderClient Client, msg CreateSessionMsg) {
 		ClientIDs:   []string{},
 		createdDate: time.Now(),
 	}
+	a.SessionMap[session.ID] = session
 	// Add client who created session to session
 	AddClientToSessionMsg := AddClientToSessionMsg{
 		Type:        "AddClientToSession",
