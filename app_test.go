@@ -225,3 +225,104 @@ func TestClientIsAddedToSessionWhenCreatingSession(t *testing.T) {
 		)
 	}
 }
+
+func Test_two_clients_can_join_session(t *testing.T) {
+	testServer, wsUrl := SetupWsServer(t)
+	defer testServer.Close()
+
+	// Client 1 connect
+	ws, _, err := websocket.DefaultDialer.Dial(wsUrl, nil)
+	if err != nil {
+		t.Fatalf("Failed to connect to websocket server: %v", err)
+	}
+	defer CloseWithCloseMessage(ws)
+
+	// Received client 1 connect message
+	_, msgBytes, err := ws.ReadMessage()
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+
+	// Parse client 1 connect message json
+	var client1ConnectMsg ClientConnectMsg
+	err = json.Unmarshal(msgBytes, &client1ConnectMsg)
+	if err != nil {
+		t.Fatalf("Error parsing client1 message json as ClientConnectMsg: %v", err)
+	}
+
+	// Client 2 connect
+	ws2, _, err := websocket.DefaultDialer.Dial(wsUrl, nil)
+	if err != nil {
+		t.Fatalf("Failed to connect client 1 to websocket server: %v", err)
+	}
+	defer CloseWithCloseMessage(ws)
+
+	// Received client 2 connect message
+	_, msgBytes, err = ws2.ReadMessage()
+	if err != nil {
+		t.Fatalf("Failed to connect client 2 to websocket server: %v", err)
+	}
+
+	// Parse client 2 connect message json
+	var client2ConnectMsg ClientConnectMsg
+	err = json.Unmarshal(msgBytes, &client2ConnectMsg)
+	if err != nil {
+		t.Fatalf("Error parsing client2 message json as ClientConnectMsg: %v", err)
+	}
+
+	if client1ConnectMsg.Client.ID == client2ConnectMsg.Client.ID {
+		t.Fatalf("Expected clients to each have unique id but both were %s", client2ConnectMsg.Client.ID)
+	}
+
+	// Client 1 creates session
+	createSessionMsg := CreateSessionMsg{
+		Type: "CreateSession",
+	}
+	err = ws.WriteJSON(createSessionMsg)
+	if err != nil {
+		t.Fatalf("Failed to send CreateSessionMsg %v", err)
+	}
+
+	// Client 1 should receive a message that it was added to the new session
+	_, msgBytes, _ = ws.ReadMessage()
+	msgString := string(msgBytes)
+	log.Printf("msg string %s", msgString)
+	var client1AddedToSessionMsg ClientJoinedSessionMsg
+	err = json.Unmarshal(msgBytes, &client1AddedToSessionMsg)
+	if err != nil {
+		t.Fatalf("Error parsing ClientJoinedSessionMsg")
+	}
+	if client1AddedToSessionMsg.SessionOwnerID != client1ConnectMsg.Client.ID {
+		t.Fatalf(
+			"Expected session owner client to be first client that connected with id %s",
+			client1ConnectMsg.Client.ID,
+		)
+	}
+
+	sessionId := client1AddedToSessionMsg.SessionID
+
+	t.Log("Client 1 created and added itself to session with id ")
+
+	addClient2ToSessionMsg := AddClientToSessionMsg{
+		Type:        "AddClientToSession",
+		SessionID:   sessionId,
+		AddClientID: client2ConnectMsg.Client.ID,
+	}
+	err = ws.WriteJSON(addClient2ToSessionMsg)
+	if err != nil {
+		t.Fatal("Failed to send AddClientToSessionMsg for client 2")
+	}
+
+	// Client 2 should receive a message that it was added to the new session
+	_, msgBytes, _ = ws2.ReadMessage()
+	msgString = string(msgBytes)
+	log.Printf("msg string %s", msgString)
+	var client2AddedToSessionMsg ClientJoinedSessionMsg
+	err = json.Unmarshal(msgBytes, &client2AddedToSessionMsg)
+	if err != nil {
+		t.Fatalf("Error parsing ClientJoinedSessionMsg")
+	}
+	if client2AddedToSessionMsg.SessionID != sessionId {
+		t.Fatalf("Expected client 2 to be added to session with id %s but was %s", sessionId, client2AddedToSessionMsg.SessionID)
+	}
+}
