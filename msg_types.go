@@ -106,16 +106,16 @@ type ClientLeftSessionMsg struct {
 
 // BroadcastToSessionMsg - Used by client to send content to all clients in session
 type BroadcastToSessionMsg struct {
-	Type    string      `json:"type"`
-	Payload interface{} `json:"payload"`
+	Type    string `json:"type"`
+	Payload string `json:"payload"`
 }
 
 // BroadcastFromSessionMsg - Used by server to send content all clients in a session
 type BroadcastFromSessionMsg struct {
-	Type             string      `json:"type"`
-	FromSessionOwner bool        `json:"fromSessionOwner"`
-	SenderID         string      `json:"senderId"`
-	Payload          interface{} `json:"payload"`
+	Type             string `json:"type"`
+	FromSessionOwner bool   `json:"fromSessionOwner"`
+	SenderID         string `json:"senderId"`
+	Payload          string `json:"payload"`
 }
 
 // ErrorMsg - Websocket error message
