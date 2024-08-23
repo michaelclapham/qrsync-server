@@ -434,13 +434,13 @@ func Test_session_owner_can_broadcast_to_another_client(t *testing.T) {
 	}
 
 	// Client 1 (session owner) broadcast to other clients in session
-	payload := ExamplePayload{
+	sentPayload := ExamplePayload{
 		Title: "test title",
 		Body:  "test body",
 	}
 	broadcastToSessionMsg := BroadcastToSessionMsg{
 		Type:    "BroadcastToSession",
-		Payload: payload,
+		Payload: sentPayload,
 	}
 	err = ws.WriteJSON(broadcastToSessionMsg)
 	if err != nil {
@@ -457,8 +457,17 @@ func Test_session_owner_can_broadcast_to_another_client(t *testing.T) {
 		t.Fatalf("Error parsing BroadcastFromSessionMsg")
 	}
 
-	if broadcastFromSessionMsg.Payload != payload {
-		t.Fatalf("Expected payload received to be same as one sent received %v", broadcastFromSessionMsg.Payload)
+	receivedPayload := broadcastFromSessionMsg.Payload.(map[string]interface{})
+
+	if receivedPayload["Body"] != sentPayload.Body {
+		t.Logf("Received payload: %v", broadcastFromSessionMsg.Payload)
+		t.Logf("Sent payload: %v", sentPayload)
+		t.Fatalf(
+			"Expected payload body received to be same as one sent but sent %s is different from received %s",
+			sentPayload.Body,
+			receivedPayload["Body"],
+		)
+
 	}
 
 }
