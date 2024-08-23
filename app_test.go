@@ -439,7 +439,7 @@ func Test_session_owner_can_broadcast_to_another_client(t *testing.T) {
 		Body:  "test body",
 	}
 	broadcastToSessionMsg := BroadcastToSessionMsg{
-		Type:    "BroadcastToSessionMsg",
+		Type:    "BroadcastToSession",
 		Payload: payload,
 	}
 	err = ws.WriteJSON(broadcastToSessionMsg)
