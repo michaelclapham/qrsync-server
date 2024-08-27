@@ -26,6 +26,9 @@ func convertToTS() {
 		Add(InfoMsg{})
 
 	converter.CreateInterface = true
+	converter.ManageType(time.Time{}, typescriptify.TypeOptions{
+		TSType: "string",
+	})
 	converter.BackupDir = ""
 	tsString, err := converter.Convert(make(map[string]string))
 	if err != nil {
