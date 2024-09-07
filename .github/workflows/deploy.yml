@@ -54,8 +54,17 @@ jobs:
           password: ${{ secrets.SSH_PASSWORD }}
           port: ${{ secrets.SSH_PORT }}
           source: "qrsync-server"
-          target: /var/www/qrsync_server
+          target: /var/www/qrsync_server/tmp
           overwrite: true
+
+      - name: Move binary from tmp folder
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: ${{ secrets.SSH_PORT }}
+          script: cp "/var/www/qrsync_server/tmp/qrsync-server" /var/www/qrsync_server
 
       - name: Restart service
         uses: appleboy/ssh-action@v1.0.3
