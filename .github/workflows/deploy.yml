@@ -45,6 +45,11 @@ jobs:
           port: ${{ secrets.SSH_PORT }}
           script: sudo /usr/bin/systemctl stop qrsync_server
 
+      - name: Upload binary as Github action artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: server
+          path: ./qrsync-server
 
       - name: Upload new binary
         uses: appleboy/scp-action@v0.1.7
