@@ -17,8 +17,9 @@ import (
 type App struct {
 	QRIDCounter int
 	Router      *mux.Router
-	ClientMap   map[string]Client
-	SessionMap  map[string]Session
+	// TODO: Potentially move to external data store
+	ClientMap  map[string]Client
+	SessionMap map[string]Session
 }
 
 var upgrader = websocket.Upgrader{
@@ -40,8 +41,35 @@ func (a *App) Init() {
 	// @TODO Secure with an admin password
 	a.Router.HandleFunc("/api/v1/clients", a.getClients)
 	a.Router.HandleFunc("/api/v1/sessions", a.getSessions)
+}
 
-	log.Fatal(a.ListenOnPort(4010, false))
+func (a *App) newClientId() int {
+	a.QRIDCounter++
+	if a.QRIDCounter > 100000 {
+		a.QRIDCounter = 0
+	}
+	return a.QRIDCounter
+}
+
+func (a *App) createClient(r *http.Request, conn *websocket.Conn) Client {
+	newClientID := fmt.Sprint(a.newClientId())
+
+	/* Allow client to reconnect with old id */
+	rejoinClientID := r.URL.Query().Get("clientId")
+	if len(rejoinClientID) > 0 {
+		if _, alreadyConnected := a.ClientMap[rejoinClientID]; !alreadyConnected {
+			newClientID = rejoinClientID
+		}
+	}
+
+	fmt.Println("Connection from ", r.RemoteAddr)
+
+	client := Client{
+		ID:           newClientID,
+		conn:         conn,
+		LastJoinTime: time.Now(),
+	}
+	return client
 }
 
 func (a *App) getClients(w http.ResponseWriter, r *http.Request) {
@@ -65,27 +93,20 @@ func (a *App) getSessionClientMap(sessionID string) map[string]Client {
 	return map[string]Client{}
 }
 
+func (a *App) MainHandler() http.Handler {
+	return handlers.CORS()(a.Router)
+}
+
 // ListenOnPort Starts the app listening on the provided port
 func (a *App) ListenOnPort(port int, useSSL bool) error {
 	fmt.Println("Starting server on port ", port, " use ssl ", useSSL)
 	if useSSL {
-		return http.ListenAndServeTLS(fmt.Sprint(":", port), "ssl/server.crt", "ssl/server.key", handlers.CORS()(a.Router))
+		return http.ListenAndServeTLS(fmt.Sprint(":", port), "ssl/server.crt", "ssl/server.key", a.MainHandler())
 	}
-	return http.ListenAndServe(fmt.Sprint(":", port), handlers.CORS()(a.Router))
+	return http.ListenAndServe(fmt.Sprint(":", port), a.MainHandler())
 }
 
 func (a *App) serveWs(w http.ResponseWriter, r *http.Request) {
-	a.QRIDCounter++
-	newClientID := fmt.Sprint(a.QRIDCounter)
-
-	/* Allow client to reconnect with old id */
-	rejoinClientID := r.URL.Query().Get("clientId")
-	if len(rejoinClientID) > 0 {
-		if _, alreadyConnected := a.ClientMap[rejoinClientID]; !alreadyConnected {
-			newClientID = rejoinClientID
-		}
-	}
-
 	fmt.Println("Connection from ", r.RemoteAddr)
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -93,13 +114,9 @@ func (a *App) serveWs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client := Client{
-		ID:           newClientID,
-		conn:         conn,
-		LastJoinTime: time.Now(),
-	}
-
 	a.removeOldClients()
+
+	client := a.createClient(r, conn)
 
 	a.ClientMap[client.ID] = client
 	conn.SetCloseHandler(func(_ int, _ string) error {
@@ -204,20 +221,14 @@ func (a *App) onCreateSessionMsg(senderClient Client, msg CreateSessionMsg) {
 		ClientIDs:   []string{},
 		createdDate: time.Now(),
 	}
-	clientIDsToAdd := []string{senderClient.ID}
-	if _, ok := a.ClientMap[msg.AddClientID]; ok {
-		clientIDsToAdd = append(clientIDsToAdd, msg.AddClientID)
-	}
 	a.SessionMap[session.ID] = session
-	fmt.Println("Created session", session)
-	for _, clientID := range clientIDsToAdd {
-		AddClientToSessionMsg := AddClientToSessionMsg{
-			Type:        "AddClientToSession",
-			SessionID:   session.ID,
-			AddClientID: clientID,
-		}
-		a.onAddClientToSessionMsg(senderClient, AddClientToSessionMsg, false)
+	// Add client who created session to session
+	AddClientToSessionMsg := AddClientToSessionMsg{
+		Type:        "AddClientToSession",
+		SessionID:   session.ID,
+		AddClientID: senderClient.ID,
 	}
+	a.onAddClientToSessionMsg(senderClient, AddClientToSessionMsg, false)
 }
 
 func (a *App) onAddClientToSessionMsg(senderClient Client, msg AddClientToSessionMsg, replyToSender bool) {

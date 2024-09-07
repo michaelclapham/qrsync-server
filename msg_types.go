@@ -26,6 +26,9 @@ func convertToTS() {
 		Add(InfoMsg{})
 
 	converter.CreateInterface = true
+	converter.ManageType(time.Time{}, typescriptify.TypeOptions{
+		TSType: "string",
+	})
 	converter.BackupDir = ""
 	tsString, err := converter.Convert(make(map[string]string))
 	if err != nil {
@@ -64,8 +67,7 @@ type Session struct {
 
 // CreateSessionMsg - Sent from client to create session
 type CreateSessionMsg struct {
-	Type        string `json:"type"`
-	AddClientID string `json:"addClientId"`
+	Type string `json:"type"`
 }
 
 // ClientConnectMsg - Sent to client on connecting
@@ -105,18 +107,18 @@ type ClientLeftSessionMsg struct {
 	ClientMap      map[string]Client `json:"clientMap"`
 }
 
-// BroadcastToSessionMsg -
+// BroadcastToSessionMsg - Used by client to send content to all clients in session
 type BroadcastToSessionMsg struct {
-	Type    string      `json:"type"`
-	Payload interface{} `json:"payload"`
+	Type    string `json:"type"`
+	Payload string `json:"payload"`
 }
 
-// BroadcastFromSessionMsg -
+// BroadcastFromSessionMsg - Used by server to send content all clients in a session
 type BroadcastFromSessionMsg struct {
-	Type             string      `json:"type"`
-	FromSessionOwner bool        `json:"fromSessionOwner"`
-	SenderID         string      `json:"senderId"`
-	Payload          interface{} `json:"payload"`
+	Type             string `json:"type"`
+	FromSessionOwner bool   `json:"fromSessionOwner"`
+	SenderID         string `json:"senderId"`
+	Payload          string `json:"payload"`
 }
 
 // ErrorMsg - Websocket error message

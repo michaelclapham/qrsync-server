@@ -1,6 +1,9 @@
 package main
 
-import "os"
+import (
+	"log"
+	"os"
+)
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "-ts" {
@@ -8,5 +11,6 @@ func main() {
 	} else {
 		app := App{}
 		app.Init()
+		log.Fatal(app.ListenOnPort(4010, false))
 	}
 }
