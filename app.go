@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
@@ -43,12 +44,9 @@ func (a *App) Init() {
 	a.Router.HandleFunc("/api/v1/sessions", a.getSessions)
 }
 
-func (a *App) newClientId() int {
-	a.QRIDCounter++
-	if a.QRIDCounter > 100000 {
-		a.QRIDCounter = 0
-	}
-	return a.QRIDCounter
+func (a *App) newClientId() string {
+	id := uuid.New()
+	return id.String()
 }
 
 func (a *App) createClient(r *http.Request, conn *websocket.Conn) Client {

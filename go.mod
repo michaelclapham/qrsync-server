@@ -6,6 +6,7 @@ require (
 	github.com/gorilla/websocket v1.5.1
 	github.com/tidwall/gjson v1.17.1
 	github.com/tkrajina/typescriptify-golang-structs v0.1.11
+	github.com/google/uuid v1.6.0
 )
 
 require (
